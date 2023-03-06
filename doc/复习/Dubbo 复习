@@ -1,0 +1,182 @@
+# Dubbo 复习
+
+## Dubbo 基础
+
+### dubbo 是什么
+
+Dubbo 一开始是阿里开源的一个 RPC 框架，但随着 Dubbo 的逐渐开发，已经渐渐形成了一个生态。它不仅承担 RPC 的作用，还提供了服务治理的作用。通过与 zookeeper 的结合，除了 RPC，它还提供了负载均衡算法、服务降级、模拟测试、集群容错、网关等多种功能。
+
+
+
+### 为什么要用 dubbo
+
+Dubbo 简单易用，只要使用了 Dubbo 就自带了服务降级、集群容错、负载均衡这些功能，而不是像 SpringCloud 一样还要引入其他组件。
+
+其次 Dubbo 的网上资料也很多，文档也很友好
+
+部署简单，直接整合 zookeeper 和 nginx 即可
+
+
+
+### dubbo 支持哪些协议
+
+只要记住重点的加粗的几种协议即可：
+
+- **dubbo 协议**：默认协议，使用 NIO 方式处理请求，底层使用 Netty 框架实现，官方推荐使用，但在大文件传输时存在性能瓶颈，书
+
+  ​                         用于小数据量大并发的情况
+
+- **rmi 协议：**与原生 RMI 操作，基于 TCP
+
+- **hessian 协议：**与原生 Hessian 操作，基于 HTTP，更适用于大文件传输且提供者比消费者多的情况
+
+- **http 协议**：支持 http 协议交互
+
+- **restful 协议：**GET、POST、PUT、DELETE 这些
+
+- thrift
+
+- memcached
+
+- ....
+
+
+
+### dubbo 的核心组件
+
+- **Registry 注册中心：**
+  - 用于服务注册与发现，负责记录服务提供者的地址并让消费者获取，当有变化时通过长连接通知对应节点
+- **Container 服务容器：**
+  - 服务容器是用于启动提供者服务的，依赖于 Spring 框架的自动装配机制
+  - Spring 的自动装配机制是依赖于 Servlet 3.0 后支持的 SPI 机制，即服务发现机制，我们约定在配置文件放在 META-INF 下的 service 文件夹中，命名为 spring.factory，在里面写上我们要自动加载的类的全限定类名(包名+类名)，则容器启动时会自动帮我们加载里面的内容，**因此 duboo 框架不需要我们额外再使用容器启动了**
+- **Provider 服务提供者：**
+  - 对外暴露服务的提供方，通过容器启动时会将自己的地址注册到容器上，让消费者获取和调用
+- **Consumer 服务消费者：**
+  - 调用服务提供者的消费方，启动时从注册中心获取服务提供者的地址，调用时是本地调用
+- **Monitor 监控中心：**
+  - 统计服务的调用成功/失败次数和调用时间的监控中心，不会影响到实际的业务，而是每分钟统计一次数据
+
+
+
+### dubbo 的流程
+
+![dubbo-architecture](Dubbo 复习.assets/dubbo-architecture.jpg)
+
+- 容器将服务提供者启动
+- 服务提供者启动时，会向注册中心注册自己提供的服务
+- 服务消费者启动时，访问注册中心订阅自己所需的服务
+- 注册中心会将服务消费者订阅的，对应服务提供者的地址列表返回，如果有变更，注册中心则会通过长连接将变更内容推送给消费者
+- 服务消费者获取到服务提供者的地址列表后，局域软负载均衡算法，选择其中一台提供者进行调用，若调用失败，则另选一台调用
+- 服务消费者和提供者会在内存中累计调用次数和时间，每分钟发送一次统计数据到监控中心
+
+
+
+### Dubbo 核心 xml 配置
+
+- dubbo:registry 注册中心相关配置
+
+- dubbo:protocol 注册协议相关配置
+- dubbo:consumer 消费者服务相关配置
+- dubbo:provider 提供者服务香瓜配置
+- dubbo:meta-report 元数据中心相关配置
+- dubbo:monitor 监控中心配置
+- dubbo:reference
+
+
+
+dubbo:registry 注册中心
+
+dubbo:monitor 监控中心
+
+dubbo:provider  提供者
+
+dubbo:consumer 消费者
+
+dubbo:meta-report 元数据中心
+
+dubbo:reference 引用
+
+
+
+
+
+dubbo-admin：管理控制台
+
+主要包含：路由规则、动态配置、服务降级、访问控制、权重调整、负载均衡等管理功能
+
+dubbo-monitor：监控平台
+
+主要用来统计服务的调用次数和调用时间，服务消费者和 提供者，在内存中累计调用次数和调用时间，定时每分钟发送一次统计数据到监控中心，监控中心则使用数据绘制图表来显示。
+
+
+
+### dubbo 如何实现服务降级
+
+dubbo 中可以使用 `Local Mock` 实现服务降级，可以在 DubboReference 上修改 mock 参数，支持接口实现类方式处理以及抛出异常的方式处理
+
+> **接口实现类方式处理**
+
+在 @DubboReference 上定义：
+
+```java
+@DubboReference(mock = "com.sample.dubboconsumer.mock.UserDubboMock")
+UserService userService;
+```
+
+并实现这个接口的方法，当 mock 类中的方法被调用时就是发生了异常的时候
+
+
+
+> **抛出异常方式处理**
+
+抛出异常则是一样在 @DubboReference 的 mock 参数里面定义，不过要加上 throw
+
+默认只写 throw，会抛出 RpcException，也可以指定自定义方法
+
+```java
+@DubboReference(mock = "throw com.sample.dubboconsumer.exception.DubboGlobalException")
+UserService userService;
+```
+
+```java
+public class DubboGlobalException extends Exception{
+    xxxxx
+}
+```
+
+```java
+@ControllerAdvice
+@Component
+public class DubboGlobalExceptionHandler {
+    // 自定义异常处理
+    @ExceptionHandler(DubboGlobalException.class)
+    @ResponseBody
+    public DubboGlobalException handleMyException(DubboGlobalException e){
+        System.out.println(e.getMessage());
+        return new DubboGlobalException("发生了异常");
+    }
+}
+```
+
+
+
+> **如果要避免给每个 DubboReference 都配置 mock，可以直接在配置文件中显式地指定**
+
+```properties
+dubbo.consumer.mock=throw com.sample.dubboconsumer.exception.DubboGlobalException
+```
+
+
+
+
+
+### dubbo 如何实现熔断
+
+dubbo 的熔断只能通过整合 Hystrix 实现
+
+
+
+
+
+## Dubbo 原理
+

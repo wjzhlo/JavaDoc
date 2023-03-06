@@ -1,0 +1,395 @@
+# 设计模式
+
+## 单例模式
+
+### 什么是单例模式
+
+`单例模式即整个进程中这个单例类只能允许一个类存在，如 Spring 中的 bean 就默认是单例模式`
+
+
+
+### 适用场景
+
+一般用在创建、销毁消耗资源过多，却又经常用到的对象，如数据库连接对象等
+
+
+
+### 优缺点
+
+- 在内存中只保存一个对象，节省内存空间
+- 避免对共享资源的多重占用
+- 避免频繁创建和销毁对象，提高性能
+
+
+
+### 实现方式
+
+分为 静态初始化(饿汉模式)、双重加锁(懒汉模式)三种
+
+- 静态初始化(饿汉模式)：即在类的初始化阶段就加载
+
+  ```java
+  public class Singleton1 {
+      // 饿汉模式，静态对象 static 自动实例化
+      private static volatile Singleton1 singleton1 = new Singleton1();
+  
+      // 将构造函数私有化
+      private Singleton1(){}
+  
+      public static Singleton1 getSingleton1() {
+          return singleton1;
+      }
+  
+      public static void main(String[] args) {
+          System.out.println(Singleton1.getSingleton1());
+      }
+  }
+  ```
+
+- 双重枷锁(懒汉模式)：只有第一次用到时才开始加载，需要通过双重校验锁的方式防止创建多个实例对象
+
+  - **为什么使用双重校验锁？**
+    - 第一个判断 null 是为了提高性能，当实例对象被创建了，就不会走到同步代码块中
+    - 第二个判断 null 是防止创建多个实例对象，因为在经过第一个 null 判断线程B等待锁，当线程B获取到锁时，可能上一个线程 A 已经创建了对象了，这是如果不再次做 null 检测则可能会创建两个实例对象
+
+  ```java
+  public class Singleton1 {
+      // 懒汉模式
+      private static volatile Singleton1 instance = null;
+  
+      // 将构造函数私有化
+      private Singleton1(){}
+  
+      public static Singleton1 getSingleton1() {
+          // 双重校验锁
+          if (instance == null) {
+              synchronized (Singleton1.class) {
+                  if (instance == null) {
+                      instance = new Singleton1();
+                  }
+              }
+          }
+          return instance;
+      }
+  
+      public static void main(String[] args) {
+          System.out.println(Singleton1.getSingleton1());
+      }
+  }
+  ```
+
+
+
+## 工厂模式
+
+### 什么是工厂模式
+
+`工厂模式就是将创建对象的步骤进行统一管理和控制，从而让调用者不再关心对象如何创建，而是根据自己的需求，在工厂中拿到实例化好的对象并使用`
+
+
+
+### 工厂模式类型
+
+工厂模式分为简单工厂模式、工厂方法模式和抽象工厂模式，不过一般项目中我们只是用了简单工厂模式
+
+- **简单工厂模式：**
+  - 简单工厂模式就是创建一个工厂类，根据传入的参数不同，实例化不同的对象并返回
+- **工厂方法模式：**；、
+  - 工厂方法模式即定义一个公共行为的接口，并允许其他工厂实现。其他工厂在实现方法中实例化对应的对象。代码编写时根据要使用的对象不同调用不同的工厂类返回。可以看做是在简单工厂模式的基础上，又使用一个接口给简单工厂类实现某些具体方法
+  - 工厂方法模式侧重的是给各个工厂加上通用的方法
+- **抽象工厂模式：**
+  - 抽象工厂模式使用上和工厂方法模式没什么区别
+
+
+
+## 代理模式
+
+`代理模式即通过代理对象访问目标对象，这样可以在被代理对象实现的基础上，对其方法进行增强，又不污染被代理对象的代码逻辑。代理模式分为静态代理和动态代理，动态代理有 jdk 方式和 cglib 方式。Spring AOP 的原理就是使用代理模式实现的，能够完成日志记录、事务、监控等功能`
+
+
+
+### 静态代理模式
+
+静态代理模式即实现被代理对象实现的接口，并在调用接口方法时也调用被代理对象的方法
+
+```java
+public class UserDaoProxy implements IUserDao {
+    //接收保存目标对象
+    private IUserDao target;
+    public UserDaoProxy(IUserDao target){
+        this.target=target;
+    }
+
+    public void save() {
+        System.out.println("开始事务...");
+        target.save();//执行目标对象的方法
+        System.out.println("提交事务...");
+    }
+}
+```
+
+
+
+### 动态代理模式
+
+`动态代理模式分为 jdk 代理和 cglib 代理，Spring AOP 是通过混合使用的方式使用动态代理的`
+
+
+
+#### jdk 代理和 cglib 的区别
+
+- jdk 代理是 java 自带的，cglib 是外部的库，是用其他语言实现的
+
+- jdk 代理的实现原理是实现被代理类的接口实现的，若没有代理类接口则无法使用jdk代理
+
+  cglib 代理的实现原理是创建一个被代理类的子类，但被代理类不能是最终类(即不可修改的类)，且效率更高
+
+- Spring AOP 中采用混合方式使用，如果有实现接口就使用 jdk，没有就使用 cglib
+
+
+
+### jdk 方式实现
+
+先实现 `InvocationHandler ` 接口定义调用处理类，实现 invoke 方法 ，
+
+```java
+public class VehicalInvacationHandler implements InvocationHandler {
+ 
+    private final IVehical vehical;
+    public VehicalInvacationHandler(IVehical vehical){
+        this.vehical = vehical;
+    }
+ 
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        System.out.println("---------before-------");
+        Object invoke = method.invoke(vehical, args);
+        System.out.println("---------after-------");
+ 
+        return invoke;
+    }
+```
+
+
+
+然后用 Proxy.newProxyInstance 方法获得代理对象，newProxyInstance 中传入被代理对象的类模板，接口模板以及代理对象
+
+```java
+public class App {
+    public static void main(String[] args) {
+        IVehical car = new Car();
+ 
+        IVehical vehical = (IVehical)Proxy.newProxyInstance(car.getClass().getClassLoader(), Car.class.getInterfaces(), new VehicalInvacationHandler(car));
+        vehical.run();
+    }
+}
+```
+
+
+
+### cglib 方式实现
+
+Enhancer 
+
+
+
+## 装饰者模式
+
+装饰者模式即支持动态地给一个对象添加一些额外的职责，如给点了一杯奶茶，给奶茶加糖、加蜂蜜、加珍珠，可以通过装饰者模式实现动态拔插。
+
+- 先定义一个饮料类
+
+  ```java
+  public abstract class Drink {
+      // 制作一杯饮料
+      public abstract void make();
+  }
+  ```
+
+- 定义一个抽象类继承这个饮料类，并重写这个制作的方法
+
+  ```java
+  public abstract class DrinkDecorator extends Drink{
+  
+      private Drink drink = null;
+  
+      public DrinkDecorator(Drink drink) {
+          this.drink = drink;
+      }
+  
+      @Override
+      public void make() {
+          if (drink != null) {
+              this.drink.make();
+          }
+      }
+  }
+  ```
+
+- 根据实际业务实现抽象装饰类，编写自己的装饰方法并重写制作方法
+
+  ```java
+  // 添加蜂蜜
+  public class BeeDecorator extends DrinkDecorator{
+  
+      public BeeDecorator(Drink drink) {
+          super(drink);
+      }
+  
+      public void addBee() {
+          System.out.println("修饰方法：添加蜂蜜...");
+      }
+  
+      @Override
+      public void make() {
+          super.make();
+          this.addBee();
+      }
+  }
+  ```
+
+  ```java
+  // 添加水
+  public class WaterDecorator extends DrinkDecorator {
+      public WaterDecorator(Drink drink) {
+          super(drink);
+      }
+  
+      public void addWater() {
+          System.out.println("修饰方法：添加水...");
+      }
+  
+      @Override
+      public void make() {
+          this.addWater();
+          super.make();
+      }
+  }
+  ```
+
+- 给奶茶类添加装饰器，并制作一杯奶茶
+
+  ```java
+  public class MainTest {
+      public static void main(String[] args) {
+          Drink coffeDrink = new CoffeDrink();
+          // 添加装饰者
+          coffeDrink = new BeeDecorator(coffeDrink);
+          coffeDrink = new WaterDecorator(coffeDrink);
+          coffeDrink.make();
+      }
+  }
+  ```
+
+
+
+## 模板模式
+
+模板模式就是定义好事件处理的骨架，如要做菜，必须要依次调用打开冰箱、取出菜品、处理菜品这个方法顺序，专注于做事情的顺序，不关心里面具体的每个步骤是如何被子类实现的
+
+```java
+// 西红柿炒蛋
+public class EggsWithTomato extends DodishTemplate{
+    @Override
+    public void preparation() {
+        System.out.println("洗并切西红柿，打鸡蛋。");
+    }
+
+    @Override
+    public void doing() {
+        System.out.println("鸡蛋倒入锅里，然后倒入西红柿一起炒。");
+    }
+
+    @Override
+    public void carriedDishes() {
+        System.out.println("将炒好的西红寺鸡蛋装入碟子里，端给客人吃。");
+    }
+}
+```
+
+```java
+// 红烧肉
+public class Bouilli extends DodishTemplate{
+    @Override
+    public void preparation() {
+        System.out.println("切猪肉和土豆。");
+    }
+
+    @Override
+    public void doing() {
+        System.out.println("将切好的猪肉倒入锅中炒一会然后倒入土豆连炒带炖。");
+    }
+
+    @Override
+    public void carriedDishes() {
+        System.out.println("将做好的红烧肉盛进碗里端给客人吃。");
+    }
+}
+```
+
+使用
+
+```java
+public class App {
+    public static void main(String[] args) {
+        DodishTemplate eggsWithTomato = new EggsWithTomato();
+        eggsWithTomato.dodish();
+        
+        System.out.println("-----------------------------");
+        
+        DodishTemplate bouilli = new Bouilli();
+        bouilli.dodish();
+    }
+}
+```
+
+
+
+### 模板模式的作用
+
+- 实现代码复用，即骨架的代码不会变化，如在数据库连接中使用
+- 定义好处理骨架，具体的细节定义在子类中，能够在保持骨架不变的情况下增强代码的扩展性
+- 实际是一种反向控制，父类可以通过骨架来控制子类的操作，子类又能对父类操作进行扩展
+- 不足就是每个不同的实现都要定义一个子类，会导致类的个数增加
+
+
+
+## 策略模式
+
+策略模式是预先定义好多种算法策略，根据传入的子类对象不同使用不同的策略处理
+
+
+
+## 观察者模式
+
+`观察者模式又被称为发布/订阅模式，指对象之间存在依赖关系，当一个对象的状态发生变化是，所有依赖于它的对象都会得到通知并作出处理。常见的实现如 zk 的 watcher 机制、redis 的发布/订阅机制、mq队列`
+
+一般会有消费者、提供者、订阅主题这三种，消费者会订阅关注的主题，当提供者发出这类主题的内容时服务器会通知消费者消费
+
+
+
+## Spring 中都用了哪些设计模式
+
+https://blog.csdn.net/qq_34337272/article/details/90487768
+
+Spring Bean 的创建使用了`工厂模式`
+
+Spring 的 Bean 默认就是`单例模式`
+
+Spring AOP 就是使用`代理模式`
+
+Spring 中以 Template 结尾的类就都用了`模板模式`，如 jdbcTemplate，redisTemplate 等
+
+Spring 的事件驱动模型使用了`观察者模式`
+
+
+
+
+
+
+
+
+
+
+
+
+
